@@ -1,0 +1,8 @@
+customtkinter>=5.2.0
+pyTelegramBotAPI>=4.14.0
+google-genai>=1.0.0
+pandas>=2.0.0
+matplotlib>=3.7.0
+Pillow>=10.0.0
+MetaTrader5>=5.0.45
+pyinstaller>=6.0.0

@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.env
+venv/
+env/
+ENV/
+
+# PyInstaller Build & Dist
+build/
+dist/
+
+# Bot data generated runtime files & secrets
+bot_data/settings.json
+bot_data/charts/
+bot_data/mt5_signals/
+bot_data/*.png
+bot_data/*_backup_*.csv
+
+# OS generated files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.DS_Store
+*.log
