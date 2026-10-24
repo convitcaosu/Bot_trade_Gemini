@@ -79,6 +79,19 @@ class GeminiBrain:
         except Exception as e:
             return f"❌ Lỗi khi gọi Gemini: {str(e)}"
 
+    def analyze_text(self, prompt: str) -> str:
+        """V4: text-only judge call. Returns raw model text (JSON expected
+        by v4_ai_judge.parse_verdict). Empty string if not ready, so the
+        judge can SKIP instead of inventing a score."""
+        if not self.ready or not self.client:
+            return ""
+        try:
+            response = self.client.models.generate_content(
+                model=self.model, contents=[prompt])
+            return response.text or ""
+        except Exception as e:
+            return f"ERROR: {e}"
+
     def analyze_setup_data(self, setup_info: dict, stats_summary: str = "") -> str:
         """Phân tích setup từ dữ liệu số (không cần ảnh)"""
         if not self.ready or not self.client:

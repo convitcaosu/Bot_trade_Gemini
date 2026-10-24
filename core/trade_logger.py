@@ -23,7 +23,7 @@ COLUMNS = [
     "direction", "entry_price", "stop_loss", "take_profit",
     "tp1", "tp2", "tp3", "atr", "market_structure", "has_ob",
     "outcome", "rr_achieved", "tp_hit", "ai_score", "ai_analysis",
-    "image_path", "notes"
+    "image_path", "notes", "method_id", "ai_reason"
 ]
 
 

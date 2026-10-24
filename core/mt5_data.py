@@ -189,23 +189,18 @@ class MT5Connector:
                 except Exception:
                     pass
 
-        # 2. Quét từ MT5 API
+        # 2. Quét từ MT5 API — V4: KHÔNG kén symbol. Mọi symbol đang
+        # visible trên Market Watch đều được nhận, kể cả symbol lạ,
+        # đuôi sàn, index, crypto. Lọc chỉ xảy ra ở tầng AI (top-N),
+        # không xảy ra ở tầng phát hiện symbol.
         if self.connected and MT5_AVAILABLE:
             try:
                 all_syms = mt5.symbols_get()
                 if all_syms:
                     visible = [s.name for s in all_syms if s.visible]
-                    if visible:
-                        known_bases = ["XAUUSD", "EURUSD", "GBPUSD", "USDJPY", "GBPJPY",
-                                       "EURJPY", "AUDUSD", "NZDUSD", "USDCAD", "USDCHF",
-                                       "BTCUSD", "US30", "NAS100", "SPX500"]
-                        for v in visible:
-                            clean = v.upper().replace("C", "").replace("M", "").replace(".PRO", "").replace("_", "")
-                            for base in known_bases:
-                                if base in clean or clean.startswith(base[:6]):
-                                    if v not in detected:
-                                        detected.append(v)
-                                    break
+                    for v in visible:
+                        if v not in detected:
+                            detected.append(v)
             except Exception as e:
                 print(f"[MT5] Lỗi auto-detect: {e}")
 

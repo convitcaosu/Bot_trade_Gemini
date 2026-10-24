@@ -83,6 +83,12 @@ class SettingsManager:
         "auto_scan": True,
         "rr_target": 3.0,
         "lookback_bars": 500,
+        # V4 — AI-first. v4_enabled=True routes the live scanner through
+        # V4Engine; False keeps the legacy sweep+pinbar scanner.
+        "v4_enabled": True,
+        "v4_preset": "balanced",  # conservative | balanced | aggressive
+        "v4_max_ai_per_minute": 10,
+        "v4_top_n_per_scan": 5,
     }
 
     def __init__(self, path=None):

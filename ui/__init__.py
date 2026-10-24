@@ -6,6 +6,7 @@ from .stats_view import StatsView
 from .log_view import LogView
 from .backtest_view import BacktestView
 from .settings_view import SettingsView
+from .v4_dashboard_view import V4DashboardView
 
 __all__ = [
     "AppWindow",
@@ -15,4 +16,5 @@ __all__ = [
     "LogView",
     "BacktestView",
     "SettingsView",
+    "V4DashboardView",
 ]

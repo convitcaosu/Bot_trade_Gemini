@@ -186,15 +186,24 @@ class SignalsView(ctk.CTkFrame):
                 text_color=color,
             ).pack()
 
-        # ─── Wick + Sweep info ───
+        # ─── Wick + Sweep info + V4 method / AI components ───
         info_row = ctk.CTkFrame(card, fg_color="transparent")
         info_row.pack(fill="x", padx=15, pady=2)
 
+        v4_info = ""
+        if getattr(signal, "method_id", ""):
+            v4_info += f"Method: {signal.method_id}  |  "
+        comps = getattr(signal, "ai_components", {}) or {}
+        if comps:
+            v4_info += "AI: " + "  ".join(f"{k} {v}/10" for k, v in comps.items()) + "  |  "
+        if getattr(signal, "ai_reason", ""):
+            v4_info += f"{signal.ai_reason}  |  "
         ctk.CTkLabel(
-            info_row, text=f"Wick: {signal.wick_percent}%  |  Sweep: {signal.sweep_pips} pips  |  FVG: {'✅' if signal.has_fvg else '❌'}",
+            info_row, text=f"{v4_info}Wick: {signal.wick_percent}%  |  Sweep: {signal.sweep_pips} pips  |  FVG: {'✅' if signal.has_fvg else '❌'}",
             font=("Segoe UI", 11),
             text_color=COLORS["text_muted"],
-        ).pack(side="left")
+            wraplength=900, justify="left",
+        ).pack(side="left", fill="x", expand=True)
 
         # ─── AI Analysis Preview ───
         if signal.ai_analysis:

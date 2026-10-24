@@ -117,6 +117,12 @@ class SettingsView(ctk.CTkFrame):
                          "Khoảng thời gian giữa mỗi lần quét (giây)")
         self._add_input(scroll, "lookback_bars", "Historical Lookback",
                          "Số nến lịch sử để quét xây dựng kinh nghiệm")
+        self._add_input(scroll, "v4_preset", "V4 Preset",
+                         "conservative | balanced | aggressive (AI-first, cần restart app để áp dụng)")
+        self._add_input(scroll, "v4_max_ai_per_minute", "V4 Max AI / phút",
+                         "Giới hạn gọi Gemini mỗi phút cho mọi symbol")
+        self._add_input(scroll, "v4_top_n_per_scan", "V4 Top ứng viên / lần quét",
+                         "Số ứng viên mạnh nhất được đưa cho AI mỗi lần quét")
 
         # ═══════════════════════════════
         # SECTION 3: AUTO SETTINGS
@@ -239,7 +245,7 @@ class SettingsView(ctk.CTkFrame):
                     val = float(val)
                 except ValueError:
                     continue
-            elif key in ["swing_lookback", "scan_interval_sec", "lookback_bars"]:
+            elif key in ["swing_lookback", "scan_interval_sec", "lookback_bars", "v4_max_ai_per_minute", "v4_top_n_per_scan"]:
                 try:
                     val = int(val)
                 except ValueError:

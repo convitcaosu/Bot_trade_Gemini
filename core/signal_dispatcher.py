@@ -45,6 +45,12 @@ class Signal:
     outcome: str = ""             # WIN / LOSS / PARTIAL / PENDING
     rr_achieved: float = 0.0
     tp_hit: str = ""              # TP1 / TP2 / TP3 / SL
+    # V4 fields — method that proposed the candidate + AI breakdown.
+    # ai_score is the AI confidence (0..10) from a parsed JSON verdict,
+    # never a hard-coded 8.0/8.5 fallback.
+    method_id: str = ""
+    ai_reason: str = ""
+    ai_components: dict = field(default_factory=dict)
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -79,6 +85,10 @@ class Signal:
             msg += f"✅ TP: `{self.take_profit}`\n"
 
         msg += f"📊 R:R ≈ 1:{rr}\n"
+        if self.method_id:
+            msg += f"🧩 Method: {self.method_id}\n"
+        if self.ai_reason:
+            msg += f"🧠 AI: {self.ai_reason}\n"
         if self.market_structure:
             msg += f"📐 Structure: {self.market_structure}\n"
         msg += f"⭐ AI Score: {self.ai_score}/10\n"

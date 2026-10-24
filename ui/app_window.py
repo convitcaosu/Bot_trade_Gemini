@@ -104,6 +104,7 @@ class AppWindow(ctk.CTk):
         self.nav_buttons = {}
         nav_items = [
             ("dashboard", "📊", "Dashboard"),
+            ("v4", "⚡", "V4 Pro"),
             ("backtest",  "🧪", "Backtest 2M"),
             ("signals",   "📡", "Signals"),
             ("stats",     "📈", "Statistics"),
@@ -271,10 +272,13 @@ class AppWindow(ctk.CTk):
         if sig_view and hasattr(sig_view, "add_signal"):
             sig_view.add_signal(signal)
 
-        # Update dashboard
+        # Update dashboard + V4 dashboard
         dash_view = self.views.get("dashboard", {}).get("instance")
         if dash_view and hasattr(dash_view, "on_new_signal"):
             dash_view.on_new_signal(signal)
+        v4_view = self.views.get("v4", {}).get("instance")
+        if v4_view and hasattr(v4_view, "on_new_signal"):
+            v4_view.on_new_signal(signal)
 
         # Flash status
         self.set_status(f"🚨 Tín hiệu mới: {signal.direction} {signal.symbol} | Score: {signal.ai_score}/10")

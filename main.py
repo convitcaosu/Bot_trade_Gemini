@@ -35,9 +35,17 @@ from core import (
     TradeLogger, QuantEngine, GeminiBrain, SignalDispatcher, Signal,
     MT5Connector, SMCSetup
 )
+# V4 — AI-first engine (optional, controlled by settings v4_enabled)
+try:
+    from core.v4_engine import V4Engine
+    from core.v4_symbols import SymbolUniverse, SymbolSpec
+except Exception:  # pragma: no cover - V4 files missing in old checkouts
+    V4Engine = None
+    SymbolUniverse = None
+    SymbolSpec = None
 from telegram_bot import TelegramBotHandler
 from ui import (
-    AppWindow, DashboardView, BacktestView, SignalsView, StatsView, LogView, SettingsView
+    AppWindow, DashboardView, BacktestView, SignalsView, StatsView, LogView, SettingsView, V4DashboardView
 )
 
 
@@ -66,6 +74,19 @@ class BotController:
         lookback = self.settings.get("lookback_bars", 500)
         self.mt5 = MT5Connector(symbols=symbols, timeframe_str=tf, lookback=lookback)
 
+        # 5b. V4 AI-first engine (no hard-coded AI score, gate decides)
+        self.v4_engine = None
+        if V4Engine is not None and self.settings.get("v4_enabled", True):
+            self.v4_engine = V4Engine(
+                mt5_connector=self.mt5,
+                gemini_brain=self.gemini_brain,
+                preset=self.settings.get("v4_preset", "balanced"),
+                universe=SymbolUniverse(
+                    max_ai_per_minute=int(self.settings.get("v4_max_ai_per_minute", 10)),
+                    top_n_per_scan=int(self.settings.get("v4_top_n_per_scan", 5)),
+                ),
+            )
+
         # 6. Telegram Bot Handler
         tg_token = self.settings.get_api_key("telegram_bot_token")
         tg_chat_id = self.settings.get_api_key("telegram_chat_id")
@@ -93,6 +114,7 @@ class BotController:
 
         # Đăng ký các tab vào AppWindow
         self.app.register_view("dashboard", DashboardView)
+        self.app.register_view("v4", V4DashboardView)
         self.app.register_view("backtest", BacktestView)
         self.app.register_view("signals", SignalsView)
         self.app.register_view("stats", StatsView)
@@ -164,13 +186,24 @@ class BotController:
 
                 # ─── B. TỰ ĐỘNG QUÉT NẾN QUA MT5 API ───
                 if self.settings.get("auto_scan", True) and self.mt5.connected:
-                    symbols = self.settings.get("mt5_symbols", ["XAUUSD", "EURUSD"])
+                    # V4: ưu tiên symbol MT5 tự phát hiện (không kén chọn).
+                    # Chỉ dùng settings khi chưa có danh sách phát hiện.
+                    detected = getattr(self.mt5, "symbols", []) or []
+                    symbols = detected if detected else self.settings.get("mt5_symbols", ["XAUUSD", "EURUSD"])
                     tf = self.settings.get("mt5_timeframe", "M5")
                     lookback_swing = self.settings.get("swing_lookback", 20)
                     min_wick = self.settings.get("min_wick_percent", 55.0)
 
                     self.mt5.timeframe_str = tf
                     for sym in symbols:
+                        # V4 (default): candidates -> AI judge -> gate.
+                        # Legacy sweep+pinbar only when v4_enabled=False.
+                        if getattr(self, "v4_engine", None) is not None:
+                            point_mult = 1.0 if "XAU" in sym.upper() else (10.0 if "JPY" in sym.upper() else 10000.0)
+                            for sig in self.v4_engine.scan_symbol(sym, point_mult=point_mult):
+                                self.trade_logger.log_trade(sig.to_dict())
+                                self.dispatcher.dispatch(sig)
+                            continue
                         setup = self.mt5.detect_smc_setup(sym, swing_lookback=lookback_swing, min_wick_pct=min_wick)
                         if setup:
                             self._process_smc_setup(setup)
@@ -238,13 +271,21 @@ class BotController:
             if not os.path.exists(chart_path):
                 chart_path = ""
 
-            # Gọi AI nếu có ảnh
+            # Gọi AI nếu có ảnh — V4: không gán điểm cứng khi AI offline.
+            # Score 0 nghĩa là "chưa được AI chấm", không phải 8/10.
             ai_verdict = ""
-            score = 8.0
+            score = 0.0
             if chart_path and self.gemini_brain.ready:
                 stats = self.quant_engine.get_summary()
                 stats_summary = f"Database {stats.get('total_trades', 0)} lệnh, Winrate {stats.get('winrate', 0)}%"
                 ai_verdict = self.gemini_brain.analyze_chart(chart_path, stats_summary=stats_summary)
+                try:
+                    import re as _re
+                    _m = _re.search(r"(\d+(\.\d+)?)\s*/\s*10", ai_verdict)
+                    if _m:
+                        score = float(_m.group(1))
+                except Exception:
+                    pass
             else:
                 ai_verdict = f"EA Bridge: {direction} {symbol} | Sweep {sweep_pips}p | Wick {wick_pct}% | {session}"
 
@@ -295,7 +336,7 @@ class BotController:
 
         # Gọi Gemini phân tích
         ai_verdict = ""
-        score = 8.0
+        score = 0.0
         direction = "BUY"
         if self.gemini_brain.ready:
             ai_verdict = self.gemini_brain.analyze_chart(img_path, stats_summary=stats_summary)
@@ -304,31 +345,30 @@ class BotController:
                 direction = "SELL"
             elif "SKIP" in ai_verdict.upper():
                 direction = "SKIP"
+            try:
+                import re as _re2
+                _m2 = _re2.search(r"(\d+(\.\d+)?)\s*/\s*10", ai_verdict)
+                if _m2:
+                    score = float(_m2.group(1))
+            except Exception:
+                pass
         else:
             ai_verdict = "Setup SMC hợp lệ được ghi nhận từ EA Bridge. (Gemini AI Offline)"
 
-        # Tạo đối tượng Signal
-        sig = Signal(
-            signal_id=f"{symbol}_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
-            timestamp=datetime.now().strftime("%Y-%m-%d %H:%M"),
-            symbol=symbol,
-            timeframe=timeframe,
-            direction=direction,
-            entry_price=0.0,
-            stop_loss=0.0,
-            take_profit=0.0,
-            ai_score=score,
-            ai_analysis=ai_verdict,
-            chart_image_path=img_path,
-            session=datetime.now().strftime("%H:%M"),
-            outcome="PENDING",
-        )
+        # V4: ảnh screenshot không có Entry/SL/TP số — không được bắn
+        # tín hiệu giá 0. Chỉ ghi log phân tích, không dispatch.
+        if direction == "SKIP" or not self.gemini_brain.ready:
+            print(f"[EA Screenshot] SKIP — không có mức giá số từ ảnh: {img_path} | {ai_verdict[:200]}")
+            self.app.set_status("📸 Ảnh chart đã nhận, nhưng chưa đủ mức giá số để bắn tín hiệu.")
+            return
 
-        # Ghi log ban đầu
-        self.trade_logger.log_trade(sig.to_dict())
-
-        # Bắn đồng thời 2 nơi qua Dispatcher!
-        self.dispatcher.dispatch(sig)
+        # Tạo đối tượng Signal — VẪN cần mức giá số; nếu không parse được
+        # thì hàm này sẽ không dispatch ở bước dưới (guard entry==0).
+        # Để tránh tín hiệu 0, chúng ta dừng ở đây cho luồng screenshot
+        # cho tới khi V4 judge JSON được nối vào luồng này.
+        print(f"[EA Screenshot] Cần V4 judge JSON để trích Entry/SL/TP — chưa dispatch tín hiệu giá 0: {img_path}")
+        self.app.set_status("📸 Ảnh chart đã nhận — đang chờ V4 judge trích mức giá, chưa bắn tín hiệu giá 0.")
+        return
 
     def _process_smc_setup(self, setup: SMCSetup):
         """Xử lý khi phát hiện setup SMC từ thuật toán quét nến trực tiếp"""
@@ -346,9 +386,9 @@ class BotController:
             f"Phiên hiệu quả nhất: {stats.get('best_session', 'London')}."
         )
 
-        # 3. Gemini Vision phân tích
+        # 3. Gemini Vision phân tích — V4: 0 khi AI offline, không gán 8.5.
         ai_verdict = ""
-        score = 8.5
+        score = 0.0
         if self.gemini_brain.ready and chart_path and os.path.exists(chart_path):
             ai_verdict = self.gemini_brain.analyze_chart(chart_path, stats_summary=stats_summary)
             # Thử trích xuất score
